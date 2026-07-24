@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>湿度計算 | 温度・湿度・露点 相互変換ツール</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232496ed'/%3E%3Cpath d='M50 20 C50 20 28 50 28 66 a22 22 0 1 0 44 0 C72 50 50 20 50 20 Z' fill='white'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232496ed'/%3E%3Cpath d='M50 20 C50 20 28 50 28 66 a22 22 0 1 0 44 0 C72 50 50 20 50 20 Z' fill='white'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#f3f5f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1620" media="(prefers-color-scheme: dark)">
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#f3f5f8;
+    --surface:#ffffff;
+    --surface-2:#f7f9fc;
+    --input-bg:#fafcfe;
+    --ink:#1a2332;
+    --muted:#5b6b80;
+    --line:#dbe2ec;
+    --blue:#2496ed;
+    --blue-d:#1a73c7;
+    --blue-ink:#1a4a7a;
+    --blue-tint:#f1f8ff;
+    --blue-tint-line:#cfe6fb;
+    --amber:#c98a16;
+    --amber-ink:#8a5e10;
+    --amber-tint:#fdf3e0;
+    --green:#1e9e4a;
+    --red:#d64545;
+    --err-bg:#fdeded;
+    --err-line:#f3bcbc;
+    --err-ink:#b02a2a;
+    --shadow:0 1px 3px rgba(20,40,70,.08),0 4px 16px rgba(20,40,70,.06);
+    --btn-grad:linear-gradient(135deg,#2496ed,#1a73c7);
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      color-scheme:dark;
+      --bg:#0f1620;
+      --surface:#18212e;
+      --surface-2:#1c2735;
+      --input-bg:#131c27;
+      --ink:#e6edf5;
+      --muted:#93a4b8;
+      --line:#2b3a4c;
+      --blue:#4aa8f2;
+      --blue-d:#7cc0f7;
+      --blue-ink:#a9d3f5;
+      --blue-tint:#16283a;
+      --blue-tint-line:#27506f;
+      --amber:#e0a53a;
+      --amber-ink:#e8bd6a;
+      --amber-tint:#2c2415;
+      --green:#4cc474;
+      --red:#e97070;
+      --err-bg:#2c1a1c;
+      --err-line:#5a3034;
+      --err-ink:#f0a9a9;
+      --shadow:0 1px 3px rgba(0,0,0,.45),0 6px 18px rgba(0,0,0,.35);
+      --btn-grad:linear-gradient(135deg,#2f8fe0,#1f74c4);
+    }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Segoe UI",Meiryo,system-ui,sans-serif;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .hidden{ display:none !important; }
+
+  header{
+    padding:26px 20px 8px;
+    max-width:640px;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    gap:13px;
+  }
+  header .logo{
+    flex:0 0 52px;
+    width:52px; height:52px;
+    border-radius:14px;
+    background:var(--btn-grad);
+    color:#fff;
+    font-weight:800;
+    font-size:26px;
+    line-height:52px;
+    text-align:center;
+    box-shadow:var(--shadow);
+    letter-spacing:.02em;
+  }
+  header .head-text{ flex:1; min-width:0; }
+  header h1{
+    font-size:19px;
+    margin:0 0 3px;
+    letter-spacing:.01em;
+    color:var(--ink);
+    font-weight:800;
+  }
+  header p.sub{
+    margin:0;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.55;
+  }
+
+  main{
+    max-width:640px;
+    margin:16px auto 0;
+    padding:0 20px;
+  }
+
+  /* ---- コントロールバー（モード・単位切替） ---- */
+  .controls{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .seg{
+    display:inline-flex;
+    background:var(--surface);
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    padding:3px;
+    gap:2px;
+    box-shadow:var(--shadow);
+  }
+  .seg button{
+    -webkit-appearance:none;
+    border:none;
+    background:transparent;
+    font-family:inherit;
+    font-size:13px;
+    font-weight:700;
+    color:var(--muted);
+    padding:7px 13px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+    flex:0 0 auto;
+    box-shadow:none;
+    letter-spacing:0;
+  }
+  .seg button.active{ background:var(--blue); color:#fff; }
+  .seg.unit button{ padding:7px 11px; min-width:40px; }
+  .seg-label{ font-size:11px; color:var(--muted); margin-right:6px; font-weight:600; }
+  .ctrl-group{ display:flex; align-items:center; }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  @media (max-width:420px){
+    .grid{ grid-template-columns:1fr; }
+  }
+
+  .field{
+    background:var(--surface);
+    border:1.5px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:14px 15px 12px;
+    transition:border-color .15s ease, background .15s ease;
+    position:relative;
+  }
+  .field.has-value{ border-color:var(--blue); }
+  .field.computed{
+    border-color:var(--amber);
+    background:var(--amber-tint);
+  }
+  .field label{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:6px;
+    font-weight:600;
+  }
+  .field label .tag{
+    font-size:10px;
+    padding:2px 7px;
+    border-radius:999px;
+    background:var(--blue);
+    color:#fff;
+    opacity:0;
+    font-weight:700;
+    transition:opacity .15s ease;
+  }
+  .field.has-value:not(.computed) label .tag{ opacity:1; background:var(--blue); }
+  .field.computed label .tag{ opacity:1; background:var(--amber); }
+  .field .row{ display:flex; align-items:center; gap:6px; }
+  .field input{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-size:23px;
+    font-family:"Roboto Mono",ui-monospace,monospace;
+    color:var(--ink);
+    padding:2px 0;
+    outline:none;
+    min-width:0;
+    font-weight:600;
+  }
+  .field.computed input{ color:var(--amber-ink); font-weight:700; }
+  .field .unit{ font-size:13px; color:var(--muted); white-space:nowrap; font-weight:600; }
+  .field input::placeholder{ color:var(--muted); opacity:.5; font-weight:400; }
+
+  .note-row{ margin-top:12px; }
+  .note-row label{
+    display:block;
+    font-size:11.5px;
+    color:var(--muted);
+    margin-bottom:5px;
+    font-weight:600;
+  }
+  .note-row input{
+    width:100%;
+    border:1.5px solid var(--line);
+    background:var(--input-bg);
+    border-radius:12px;
+    font-size:14px;
+    font-family:inherit;
+    color:var(--ink);
+    padding:10px 12px;
+    outline:none;
+  }
+  .note-row input:focus{ border-color:var(--blue); background:var(--surface); }
+  .note-row input::placeholder{ color:var(--muted); opacity:.55; }
+
+  .actions{ display:flex; gap:10px; margin-top:16px; }
+  button{
+    -webkit-appearance:none;
+    border:none;
+    border-radius:14px;
+    font-family:inherit;
+    font-size:15px;
+    font-weight:800;
+    padding:15px 0;
+    flex:1;
+    cursor:pointer;
+    letter-spacing:.02em;
+    transition:transform .08s ease, opacity .15s ease;
+  }
+  button:active{ transform:scale(0.98); }
+  .btn-primary{ background:var(--btn-grad); color:#fff; box-shadow:var(--shadow); }
+  .btn-primary:disabled{ background:var(--line); color:var(--muted); box-shadow:none; cursor:not-allowed; }
+  .btn-sub{ background:var(--surface); color:var(--muted); border:1.5px solid var(--line); box-shadow:var(--shadow); flex:0 0 96px; }
+
+  .msg{
+    margin-top:12px;
+    font-size:12.5px;
+    line-height:1.55;
+    padding:11px 14px;
+    border-radius:12px;
+    border:1px solid transparent;
+    display:none;
+  }
+  .msg.show{ display:block; }
+  .msg.error{ background:var(--err-bg); border-color:var(--err-line); color:var(--err-ink); }
+  .msg.info{ background:var(--blue-tint); border-color:var(--blue-tint-line); color:var(--blue-ink); }
+
+  /* ---- 算出値（詳細）パネル ---- */
+  .detail{ margin-top:16px; }
+  .detail h3{
+    font-size:13px;
+    margin:0 0 10px;
+    color:var(--ink);
+    font-weight:800;
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .detail h3 .cond{ font-size:10.5px; color:var(--muted); font-weight:500; margin-left:8px; }
+  .detail-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media (max-width:420px){ .detail-grid{ grid-template-columns:1fr; } }
+  .detail-cell{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:11px 13px;
+  }
+  .detail-cell .k{ font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600; }
+  .detail-cell .v{
+    font-size:19px; font-weight:800;
+    font-family:"Roboto Mono",ui-monospace,monospace;
+    color:var(--blue-d);
+  }
+  .detail-cell .v .u{ font-size:11px; font-weight:500; color:var(--muted); margin-left:3px; }
+
+  /* ---- 室内外比較 ---- */
+  .cmp-inputs{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  @media (max-width:520px){ .cmp-inputs{ grid-template-columns:1fr; } }
+  .cmp-result{ margin-top:16px; }
+  .cmp-table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    font-size:13.5px;
+  }
+  .cmp-table th, .cmp-table td{
+    padding:11px 8px;
+    text-align:center;
+    border-bottom:1px solid var(--line);
+  }
+  .cmp-table thead th{ background:var(--surface-2); color:var(--muted); font-weight:700; font-size:12px; }
+  .cmp-table tbody th{ text-align:left; color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap; }
+  .cmp-table td.out{ color:var(--blue-d); font-weight:800; font-family:"Roboto Mono",ui-monospace,monospace; }
+  .cmp-table td.in{ color:var(--amber-ink); font-weight:800; font-family:"Roboto Mono",ui-monospace,monospace; }
+  .cmp-table tr:last-child td, .cmp-table tr:last-child th{ border-bottom:none; }
+  .cmp-note{ font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:10px; }
+
+  /* ---- 空気線図 ---- */
+  .chart-sec{ margin-top:24px; }
+  .chart-head{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:8px; gap:8px; flex-wrap:wrap;
+  }
+  .chart-head h3{ font-size:14px; margin:0; color:var(--ink); font-weight:800; display:flex; align-items:center; }
+  .chart-legend{ font-size:10.5px; color:var(--muted); }
+  .chart-wrap{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:10px 8px 6px;
+    overflow-x:auto;
+  }
+  #chart{ width:100%; height:auto; display:block; min-width:340px; }
+  .c-grid{ stroke:var(--line); stroke-width:1; }
+  .c-axis{ stroke:var(--muted); stroke-width:1.2; }
+  .c-sat{ fill:none; stroke:var(--blue); stroke-width:2; }
+  .c-rh{ fill:none; stroke:var(--blue); stroke-width:1; opacity:.3; stroke-dasharray:3 3; }
+  .c-tick{ fill:var(--muted); font-size:11px; font-family:"Roboto Mono",ui-monospace,monospace; }
+  .c-axtitle{ fill:var(--muted); font-size:11px; }
+  .c-rhlabel{ fill:var(--blue); font-size:10px; opacity:.8; font-family:"Roboto Mono",ui-monospace,monospace; }
+  .c-cmpline{ stroke:var(--amber); stroke-width:2; stroke-dasharray:5 4; }
+  .pt{ stroke:var(--surface); stroke-width:2; }
+  .pt-single{ fill:var(--blue); }
+  .pt-out{ fill:var(--blue-d); }
+  .pt-in{ fill:var(--amber); }
+  .pt-label{ font-size:11px; font-weight:700; font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif; }
+  .pt-label.out{ fill:var(--blue-d); }
+  .pt-label.in{ fill:var(--amber-ink); }
+  .pt-label.single{ fill:var(--blue-d); }
+
+  /* ---- 履歴 ---- */
+  .history{ margin-top:26px; }
+  .history-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .history-head h2{
+    font-size:14px;
+    margin:0;
+    color:var(--ink);
+    font-weight:800;
+    letter-spacing:.01em;
+    display:flex;
+    align-items:center;
+  }
+  .history-head h2 .count{
+    font-size:11px;
+    color:var(--muted);
+    font-weight:500;
+    margin-left:6px;
+  }
+  /* セクション見出しのアクセントバー */
+  .detail h3::before, .chart-head h3::before, .history-head h2::before{
+    content:"";
+    display:inline-block;
+    flex:0 0 auto;
+    width:4px; height:15px;
+    border-radius:3px;
+    background:var(--blue);
+    margin-right:8px;
+  }
+  #clearHistBtn{
+    flex:0 0 auto;
+    padding:7px 12px;
+    font-size:12px;
+    font-weight:700;
+    background:var(--surface);
+    color:var(--muted);
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+  }
+  #clearHistBtn:disabled{ opacity:.45; cursor:default; box-shadow:none; }
+
+  .hist-empty{
+    font-size:12px;
+    color:var(--muted);
+    background:var(--surface);
+    border:1px dashed var(--line);
+    border-radius:var(--radius);
+    padding:18px;
+    text-align:center;
+  }
+
+  .hist-item{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    padding:11px 12px;
+    margin-bottom:9px;
+  }
+  .hist-item .top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:8px;
+    gap:8px;
+  }
+  .hist-item .meta{ display:flex; align-items:center; gap:8px; min-width:0; }
+  .hist-item .note-badge{
+    font-size:11px;
+    font-weight:700;
+    color:var(--blue-ink);
+    background:var(--blue-tint);
+    border:1px solid var(--blue-tint-line);
+    border-radius:7px;
+    padding:3px 8px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:170px;
+  }
+  .hist-item .time{ font-size:11px; color:var(--muted); white-space:nowrap; }
+  .hist-item .item-actions{ display:flex; gap:6px; flex:0 0 auto; }
+  .hist-item .mini-btn{
+    flex:0 0 auto;
+    font-size:11px;
+    font-weight:700;
+    padding:5px 10px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:var(--blue-d);
+    box-shadow:none;
+  }
+  .hist-item .mini-btn.del{ color:var(--muted); }
+  .hist-vals{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:6px;
+  }
+  @media (max-width:420px){ .hist-vals{ grid-template-columns:repeat(2,1fr); } }
+  .hist-vals .cell{
+    background:var(--surface-2);
+    border-radius:8px;
+    padding:6px 8px;
+    text-align:center;
+  }
+  .hist-vals .cell.input-cell{ background:var(--blue-tint); }
+  .hist-vals .cell .k{ font-size:10px; color:var(--muted); display:block; margin-bottom:2px; }
+  .hist-vals .cell .v{ font-size:14px; font-weight:800; font-family:"Roboto Mono",ui-monospace,monospace; color:var(--ink); }
+  .hist-vals .cell.input-cell .v{ color:var(--blue-d); }
+
+  .hint{
+    margin-top:22px;
+    font-size:11.5px;
+    color:var(--muted);
+    line-height:1.7;
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+  .hint b{ color:var(--ink); }
+  footer{
+    text-align:center;
+    font-size:10.5px;
+    color:var(--muted);
+    opacity:.85;
+    margin-top:26px;
+    padding:0 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">湿</span>
+  <div class="head-text">
+    <h1>湿度計算ツール</h1>
+    <p class="sub">気温・相対湿度・絶対湿度・露点温度のうち任意の2つを入力すると残り2つを自動計算。重量絶対湿度・比エンタルピー・湿球温度も算出します(Tetens/Magnus式による近似)。</p>
+  </div>
+</header>
+
+<main>
+  <div class="controls">
+    <div class="ctrl-group">
+      <div class="seg mode" role="tablist">
+        <button id="modeSingleBtn" class="active" type="button">単一計算</button>
+        <button id="modeCmpBtn" type="button">室内外比較</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="seg-label">温度単位</span>
+      <div class="seg unit">
+        <button data-unit="C" class="active" type="button">℃</button>
+        <button data-unit="F" type="button">℉</button>
+        <button data-unit="K" type="button">K</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 単一計算モード ============ -->
+  <section id="singleSection">
+    <div class="grid">
+      <div class="field" id="fieldT" data-key="T">
+        <label>気温 (Temperature)<span class="tag">入力</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.1" id="inputT" placeholder="例: 25.0">
+          <span class="unit temp-unit">℃</span>
+        </div>
+      </div>
+
+      <div class="field" id="fieldRH" data-key="RH">
+        <label>相対湿度 (RH)<span class="tag">入力</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.1" id="inputRH" placeholder="例: 60.0">
+          <span class="unit">%RH</span>
+        </div>
+      </div>
+
+      <div class="field" id="fieldAH" data-key="AH">
+        <label>絶対湿度 (容積絶対湿度)<span class="tag">入力</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.01" id="inputAH" placeholder="例: 13.8">
+          <span class="unit">g/m³</span>
+        </div>
+      </div>
+
+      <div class="field" id="fieldTd" data-key="Td">
+        <label>露点温度 (Dew Point)<span class="tag">入力</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.1" id="inputTd" placeholder="例: 16.7">
+          <span class="unit temp-unit">℃</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="note-row">
+      <label for="noteInput">地点ラベル (任意)</label>
+      <input type="text" id="noteInput" maxlength="40" placeholder="例: 外気 / 寝室 / 現場A">
+    </div>
+
+    <div class="actions">
+      <button id="resetBtn" class="btn-sub" type="button">リセット</button>
+      <button id="calcBtn" class="btn-primary" type="button">計算する</button>
+    </div>
+
+    <div class="msg" id="msgBox"></div>
+
+    <section class="detail hidden" id="detailPanel">
+      <h3>算出値(詳細)<span class="cond">標準大気圧 1013.25 hPa</span></h3>
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <span class="k">重量絶対湿度</span>
+          <span class="v"><span id="dX">–</span><span class="u">g/kg(DA)</span></span>
+        </div>
+        <div class="detail-cell">
+          <span class="k">比エンタルピー</span>
+          <span class="v"><span id="dH">–</span><span class="u">kJ/kg(DA)</span></span>
+        </div>
+        <div class="detail-cell">
+          <span class="k">湿球温度</span>
+          <span class="v"><span id="dTw">–</span><span class="u temp-unit">℃</span></span>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ============ 室内外比較モード ============ -->
+  <section id="cmpSection" class="hidden">
+    <div class="cmp-inputs">
+      <div class="field" id="fieldCmpTout">
+        <label>外気 気温<span class="tag" style="opacity:1">外</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.1" id="cmpTout" placeholder="例: 2.0">
+          <span class="unit temp-unit">℃</span>
+        </div>
+      </div>
+      <div class="field" id="fieldCmpRHout">
+        <label>外気 相対湿度<span class="tag" style="opacity:1">外</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.1" id="cmpRHout" placeholder="例: 55.0">
+          <span class="unit">%RH</span>
+        </div>
+      </div>
+      <div class="field" id="fieldCmpTin">
+        <label>室内 気温<span class="tag" style="opacity:1;background:var(--amber)">室</span></label>
+        <div class="row">
+          <input type="number" inputmode="decimal" step="0.1" id="cmpTin" placeholder="例: 20.0">
+          <span class="unit temp-unit">℃</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="cmpResetBtn" class="btn-sub" type="button">リセット</button>
+      <button id="cmpCalcBtn" class="btn-primary" type="button">比較する</button>
+    </div>
+
+    <div class="msg" id="cmpMsgBox"></div>
+
+    <div class="cmp-result hidden" id="cmpResult">
+      <table class="cmp-table">
+        <thead>
+          <tr><th>項目</th><th>外気</th><th>室内</th></tr>
+        </thead>
+        <tbody id="cmpTbody"></tbody>
+      </table>
+      <p class="cmp-note">外気を室内に取り込み温度だけ変えた場合(水分の出入りなし)を想定。<b>露点温度・重量絶対湿度(水分量)は共通</b>で、相対湿度・容積絶対湿度が変化します。</p>
+      <div class="actions">
+        <button id="cmpSaveBtn" class="btn-primary" type="button">この結果を履歴に保存</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 空気線図(共通) ============ -->
+  <section class="chart-sec">
+    <div class="chart-head">
+      <h3>空気線図 (湿り空気線図)</h3>
+      <span class="chart-legend">横軸: 乾球温度 / 縦軸: 重量絶対湿度</span>
+    </div>
+    <div class="chart-wrap">
+      <svg id="chart" viewBox="0 0 680 440" xmlns="http://www.w3.org/2000/svg" aria-label="湿り空気線図"></svg>
+    </div>
+  </section>
+
+  <!-- ============ 履歴(共通) ============ -->
+  <section class="history">
+    <div class="history-head">
+      <h2>計算履歴<span class="count" id="histCount"></span></h2>
+      <button id="clearHistBtn" type="button">すべて削除</button>
+    </div>
+    <div id="histList"></div>
+  </section>
+
+  <div class="hint">
+    <b>使い方:</b> 「単一計算」は4項目のうちちょうど2項目を入力して「計算する」。「室内外比較」は外気の気温・相対湿度と室内気温を入力すると、露点一定での室内の状態を算出します。<br>
+    <b>計算式:</b> 飽和水蒸気圧は Tetens(Magnus)式 es(T)=6.1078×10^(7.5T/(T+237.3)) [hPa]。容積絶対湿度 a=216.7×e/(T+273.15) [g/m³]、重量絶対湿度 x=622×e/(P−e) [g/kg]、比エンタルピー h=1.006T+x(2501+1.86T)/1000 [kJ/kg(DA)]、湿球温度は乾湿計式の反復解。大気圧 P は標準 1013.25 hPa 固定。実務上の目安値としてご利用ください。
+  </div>
+</main>
+
+<footer>KIZUNA Tools — 湿度計算ツール(オフライン単一HTML)</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ===================== 定数・状態 ===================== */
+  const P0 = 1013.25;               // 標準大気圧 [hPa]（固定）
+  const ORDER = ['T','RH','AH','Td'];
+  const TEMP_KEYS = new Set(['T','Td']);
+
+  const META = {
+    T:  { label:'気温',     unit:'℃',    digits:1 },
+    RH: { label:'相対湿度', unit:'%',     digits:1 },
+    AH: { label:'絶対湿度', unit:'g/m³',  digits:2 },
+    Td: { label:'露点温度', unit:'℃',    digits:1 }
+  };
+
+  let tempUnit = 'C';               // 'C' | 'F' | 'K'
+  let mode = 'single';              // 'single' | 'cmp'
+  let lastSingle = null;            // 直近の単一計算 state（℃基準）
+  let lastCmp = null;               // 直近の比較 {out, in}
+
+  const fields = {
+    T:  { el: document.getElementById('fieldT'),  input: document.getElementById('inputT')  },
+    RH: { el: document.getElementById('fieldRH'), input: document.getElementById('inputRH') },
+    AH: { el: document.getElementById('fieldAH'), input: document.getElementById('inputAH') },
+    Td: { el: document.getElementById('fieldTd'), input: document.getElementById('inputTd') }
+  };
+
+  const calcBtn = document.getElementById('calcBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const msgBox = document.getElementById('msgBox');
+  const noteInput = document.getElementById('noteInput');
+  const detailPanel = document.getElementById('detailPanel');
+  const dX = document.getElementById('dX');
+  const dH = document.getElementById('dH');
+  const dTw = document.getElementById('dTw');
+
+  const singleSection = document.getElementById('singleSection');
+  const cmpSection = document.getElementById('cmpSection');
+  const modeSingleBtn = document.getElementById('modeSingleBtn');
+  const modeCmpBtn = document.getElementById('modeCmpBtn');
+
+  const cmpTout = document.getElementById('cmpTout');
+  const cmpRHout = document.getElementById('cmpRHout');
+  const cmpTin = document.getElementById('cmpTin');
+  const cmpCalcBtn = document.getElementById('cmpCalcBtn');
+  const cmpResetBtn = document.getElementById('cmpResetBtn');
+  const cmpMsgBox = document.getElementById('cmpMsgBox');
+  const cmpResult = document.getElementById('cmpResult');
+  const cmpTbody = document.getElementById('cmpTbody');
+  const cmpSaveBtn = document.getElementById('cmpSaveBtn');
+
+  const histList = document.getElementById('histList');
+  const histCount = document.getElementById('histCount');
+  const clearHistBtn = document.getElementById('clearHistBtn');
+  const chart = document.getElementById('chart');
+
+  const HIST_KEY = 'kizuna_humidity_history_v2';
+  const HIST_KEY_V1 = 'kizuna_humidity_history_v1';
+  let history = [];
+  let memoryOnly = false;
+
+  /* ===================== 物理計算（検証済み・不変） ===================== */
+  function es(T){ return 6.1078 * Math.pow(10, (7.5 * T) / (T + 237.3)); }
+  function tdFromE(e){ const L = Math.log10(e / 6.1078); return (237.3 * L) / (7.5 - L); }
+  function tFromEs(esVal){ return tdFromE(esVal); }
+  function aFromE(e, T){ return (216.7 * e) / (T + 273.15); }
+  function eFromA(a, T){ return (a * (T + 273.15)) / 216.7; }
+
+  /* ---- 追加の派生量（大気圧 P0 固定） ---- */
+  function mixingRatio(e){ return 622.0 * e / (P0 - e); }            // 重量絶対湿度 [g/kg(DA)]
+  function enthalpy(T, x){ return 1.006 * T + (x/1000) * (2501 + 1.86 * T); } // [kJ/kg(DA)]
+  function wetBulb(T, e){
+    // 乾湿計式: e = es(Tw) - A*P0*(T - Tw)、根は [Td, T]
+    const A = 6.62e-4;
+    let lo = tdFromE(e), hi = T;
+    if (hi - lo < 1e-6) return T;
+    const f = Tw => es(Tw) - A * P0 * (T - Tw) - e;   // f(lo)<=0, f(hi)>=0
+    for (let i = 0; i < 80; i++){
+      const mid = (lo + hi) / 2;
+      if (f(mid) < 0) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  function solveT_from_RH_AH(RH, AH){
+    function g(T){ return (RH/100)*es(T) - (AH*(T+273.15))/216.7; }
+    let lo = -60, hi = 80, glo = g(lo);
+    if (glo * g(hi) > 0) return null;
+    for(let i=0; i<80; i++){
+      const mid = (lo+hi)/2, gm = g(mid);
+      if (glo * gm <= 0){ hi = mid; } else { lo = mid; glo = gm; }
+    }
+    return (lo+hi)/2;
+  }
+
+  /* ===================== 単位変換 ===================== */
+  function cToDisp(c){ if(tempUnit==='F') return c*9/5+32; if(tempUnit==='K') return c+273.15; return c; }
+  function dispToC(d){ if(tempUnit==='F') return (d-32)*5/9; if(tempUnit==='K') return d-273.15; return d; }
+  function tempUnitLabel(){ return tempUnit==='F' ? '℉' : (tempUnit==='K' ? 'K' : '℃'); }
+
+  /* ===================== 表示ヘルパ ===================== */
+  function round(v, d){ const p = Math.pow(10, d); return Math.round(v * p) / p; }
+  // key（T/RH/AH/Td）を、単位変換込みで表示文字列化（内部値=℃基準）
+  function fmtField(key, internal){
+    const val = TEMP_KEYS.has(key) ? cToDisp(internal) : internal;
+    return round(val, META[key].digits).toFixed(META[key].digits);
+  }
+  function fmtTemp(cVal, d){ return round(cToDisp(cVal), d).toFixed(d); }
+  function fmtNum(v, d){ return round(v, d).toFixed(d); }
+
+  function showMsg(box, text, type){ box.textContent = text; box.className = 'msg show ' + type; }
+  function clearMsg(box){ box.className = 'msg'; box.textContent = ''; }
+
+  function updateFieldStates(){
+    ORDER.forEach(k=>{
+      const f = fields[k];
+      f.el.classList.remove('computed');
+      if(f.input.value !== '') f.el.classList.add('has-value');
+      else f.el.classList.remove('has-value');
+    });
+  }
+
+  function updateUnitLabels(){
+    const lbl = tempUnitLabel();
+    document.querySelectorAll('.temp-unit').forEach(el=>{ el.textContent = lbl; });
+    document.querySelectorAll('.seg.unit button').forEach(b=>{
+      b.classList.toggle('active', b.dataset.unit === tempUnit);
+    });
+  }
+
+  Object.values(fields).forEach(f=>{
+    f.input.addEventListener('input', ()=>{ clearMsg(msgBox); updateFieldStates(); });
+  });
+
+  /* ===================== state 生成（e→全量） ===================== */
+  function stateFromTandE(T, e){
+    const RH = (e / es(T)) * 100;
+    const AH = aFromE(e, T);
+    const Td = tdFromE(e);
+    const x  = mixingRatio(e);
+    const h  = enthalpy(T, x);
+    const Tw = wetBulb(T, e);
+    return { T, RH, AH, Td, x, h, Tw, e };
+  }
+
+  /* ===================== 単一計算 ===================== */
+  calcBtn.addEventListener('click', ()=>{
+    clearMsg(msgBox);
+
+    const raw = {};
+    ORDER.forEach(k=>{
+      const v = fields[k].input.value;
+      if(v === '' || v === null){ raw[k] = null; return; }
+      let num = parseFloat(v);
+      if(isNaN(num)){ raw[k] = null; return; }
+      if(TEMP_KEYS.has(k)) num = dispToC(num);   // 表示単位→℃
+      raw[k] = num;
+    });
+
+    const filled = ORDER.filter(k => raw[k] !== null);
+
+    if (filled.length !== 2){
+      showMsg(msgBox, '4項目のうち、ちょうど2項目を入力してください(現在 ' + filled.length + ' 項目)。', 'error');
+      return;
+    }
+    if (raw.T !== null && (raw.T < -60 || raw.T > 80)){ showMsg(msgBox, '気温は -60〜80℃ 相当の範囲で入力してください。','error'); return; }
+    if (raw.RH !== null && (raw.RH <= 0 || raw.RH > 100)){ showMsg(msgBox, '相対湿度は 0〜100% の範囲で入力してください。','error'); return; }
+    if (raw.AH !== null && (raw.AH <= 0 || raw.AH > 200)){ showMsg(msgBox, '絶対湿度の値を確認してください。','error'); return; }
+    if (raw.Td !== null && (raw.Td < -60 || raw.Td > 80)){ showMsg(msgBox, '露点温度は -60〜80℃ 相当の範囲で入力してください。','error'); return; }
+
+    const pair = filled.slice().sort().join(',');
+    let T, RH, AH, Td, e;
+
+    try{
+      switch(pair){
+        case 'RH,T': {
+          T = raw.T; RH = raw.RH;
+          e = es(T) * RH / 100; AH = aFromE(e, T); Td = tdFromE(e);
+          break;
+        }
+        case 'AH,T': {
+          T = raw.T; AH = raw.AH;
+          e = eFromA(AH, T);
+          const esT = es(T);
+          if (e > esT) throw new Error('入力された絶対湿度がその気温での飽和水蒸気量を超えています(相対湿度100%超)。数値を確認してください。');
+          RH = (e / esT) * 100; Td = tdFromE(e);
+          break;
+        }
+        case 'T,Td': {
+          T = raw.T; Td = raw.Td;
+          if (Td > T + 0.01) throw new Error('露点温度が気温を超えています。露点温度は気温以下になります。');
+          e = es(Td); RH = (e / es(T)) * 100; AH = aFromE(e, T);
+          break;
+        }
+        case 'AH,RH': {
+          RH = raw.RH; AH = raw.AH;
+          T = solveT_from_RH_AH(RH, AH);
+          if (T === null) throw new Error('入力値の組み合わせから気温を求められませんでした。数値を確認してください。');
+          e = RH/100 * es(T); Td = tdFromE(e);
+          break;
+        }
+        case 'RH,Td': {
+          RH = raw.RH; Td = raw.Td;
+          e = es(Td);
+          const esT = e / (RH/100);
+          T = tFromEs(esT);
+          if (Td > T + 0.01) throw new Error('入力値の組み合わせが物理的に整合しません(露点温度が気温を超える)。数値を確認してください。');
+          AH = aFromE(e, T);
+          break;
+        }
+        case 'AH,Td': {
+          AH = raw.AH; Td = raw.Td;
+          e = es(Td);
+          T = (216.7 * e) / AH - 273.15;
+          if (Td > T + 0.01) throw new Error('入力値の組み合わせが物理的に整合しません(露点温度が気温を超える)。数値を確認してください。');
+          RH = (e / es(T)) * 100;
+          break;
+        }
+        default: throw new Error('未対応の組み合わせです。');
+      }
+
+      if (RH > 100.5){
+        showMsg(msgBox, '計算結果の相対湿度が100%を超えています。入力値を確認してください(過飽和)。', 'error');
+        return;
+      }
+
+      const results = { T, RH, AH, Td };
+
+      ORDER.forEach(k=>{
+        fields[k].input.value = fmtField(k, results[k]);
+        fields[k].el.classList.remove('has-value','computed');
+        if(filled.includes(k)) fields[k].el.classList.add('has-value');
+        else fields[k].el.classList.add('computed');
+      });
+
+      const state = stateFromTandE(T, e);
+      state.inputs = filled.slice();
+      lastSingle = state;
+      renderDetail(state);
+      drawChart();
+
+      // 履歴に保存
+      const entry = {
+        id: Date.now(),
+        ts: new Date().toISOString(),
+        note: noteInput.value.trim(),
+        inputs: filled.slice(),
+        state: { T:state.T, RH:state.RH, AH:state.AH, Td:state.Td, x:state.x, h:state.h, Tw:state.Tw, e:state.e }
+      };
+      history.unshift(entry);
+      if(history.length > 50) history = history.slice(0,50);
+      saveHistory();
+      renderHistory();
+
+      showMsg(msgBox, '計算が完了しました。オレンジ色の項目が算出値です。履歴に保存しました。', 'info');
+
+    } catch(err){
+      showMsg(msgBox, err.message, 'error');
+    }
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    ORDER.forEach(k=>{
+      fields[k].input.value = '';
+      fields[k].el.classList.remove('has-value','computed');
+    });
+    noteInput.value = '';
+    clearMsg(msgBox);
+    detailPanel.classList.add('hidden');
+    lastSingle = null;
+    drawChart();
+  });
+
+  function renderDetail(state){
+    dX.textContent  = fmtNum(state.x, 2);
+    dH.textContent  = fmtNum(state.h, 1);
+    dTw.textContent = fmtTemp(state.Tw, 1);
+    detailPanel.classList.remove('hidden');
+  }
+
+  /* ===================== 室内外比較 ===================== */
+  cmpCalcBtn.addEventListener('click', ()=>{
+    clearMsg(cmpMsgBox);
+    cmpResult.classList.add('hidden');
+
+    if(cmpTout.value==='' || cmpRHout.value==='' || cmpTin.value===''){
+      showMsg(cmpMsgBox, '外気の気温・相対湿度、室内の気温をすべて入力してください。', 'error');
+      return;
+    }
+    let To = parseFloat(cmpTout.value), RHo = parseFloat(cmpRHout.value), Ti = parseFloat(cmpTin.value);
+    if(isNaN(To) || isNaN(RHo) || isNaN(Ti)){ showMsg(cmpMsgBox, '数値を正しく入力してください。', 'error'); return; }
+    To = dispToC(To); Ti = dispToC(Ti);
+
+    if(To < -60 || To > 80){ showMsg(cmpMsgBox, '外気の気温が範囲外です(-60〜80℃相当)。', 'error'); return; }
+    if(Ti < -60 || Ti > 80){ showMsg(cmpMsgBox, '室内の気温が範囲外です(-60〜80℃相当)。', 'error'); return; }
+    if(RHo <= 0 || RHo > 100){ showMsg(cmpMsgBox, '外気の相対湿度は 0〜100% で入力してください。', 'error'); return; }
+
+    const e = es(To) * RHo / 100;          // 露点(水蒸気分圧)を持ち越す
+    const outState = stateFromTandE(To, e);
+    const inState  = stateFromTandE(Ti, e);
+
+    lastCmp = { out: outState, in: inState };
+    renderCmp(outState, inState);
+    drawChart();
+
+    if(inState.RH > 100.5){
+      showMsg(cmpMsgBox, '室内気温が外気の露点温度('+fmtTemp(outState.Td,1)+tempUnitLabel()+')を下回っています。この条件では結露します(室内相対湿度100%超)。', 'error');
+    } else {
+      showMsg(cmpMsgBox, '算出しました。外気の水分量のまま室内温度にした場合の状態です。', 'info');
+    }
+  });
+
+  cmpResetBtn.addEventListener('click', ()=>{
+    cmpTout.value = ''; cmpRHout.value = ''; cmpTin.value = '';
+    clearMsg(cmpMsgBox);
+    cmpResult.classList.add('hidden');
+    lastCmp = null;
+    drawChart();
+  });
+
+  function cmpRow(label, outStr, inStr){
+    const tr = document.createElement('tr');
+    const th = document.createElement('th'); th.textContent = label;
+    const td1 = document.createElement('td'); td1.className = 'out'; td1.textContent = outStr;
+    const td2 = document.createElement('td'); td2.className = 'in'; td2.textContent = inStr;
+    tr.appendChild(th); tr.appendChild(td1); tr.appendChild(td2);
+    return tr;
+  }
+
+  function renderCmp(o, i){
+    const u = tempUnitLabel();
+    cmpTbody.innerHTML = '';
+    cmpTbody.appendChild(cmpRow('気温',              fmtTemp(o.T,1)+u,       fmtTemp(i.T,1)+u));
+    cmpTbody.appendChild(cmpRow('相対湿度',          fmtNum(o.RH,1)+'%',     fmtNum(i.RH,1)+'%'));
+    cmpTbody.appendChild(cmpRow('露点温度',          fmtTemp(o.Td,1)+u,      fmtTemp(i.Td,1)+u));
+    cmpTbody.appendChild(cmpRow('容積絶対湿度',      fmtNum(o.AH,2)+' g/m³', fmtNum(i.AH,2)+' g/m³'));
+    cmpTbody.appendChild(cmpRow('重量絶対湿度',      fmtNum(o.x,2)+' g/kg',  fmtNum(i.x,2)+' g/kg'));
+    cmpTbody.appendChild(cmpRow('比エンタルピー',    fmtNum(o.h,1),          fmtNum(i.h,1)));
+    cmpTbody.appendChild(cmpRow('湿球温度',          fmtTemp(o.Tw,1)+u,      fmtTemp(i.Tw,1)+u));
+    cmpResult.classList.remove('hidden');
+  }
+
+  cmpSaveBtn.addEventListener('click', ()=>{
+    if(!lastCmp) return;
+    const now = Date.now();
+    const mk = (st, note, inputs)=>({
+      id: now + (note==='室内'?1:0),
+      ts: new Date().toISOString(),
+      note: note,
+      inputs: inputs,
+      state: { T:st.T, RH:st.RH, AH:st.AH, Td:st.Td, x:st.x, h:st.h, Tw:st.Tw, e:st.e }
+    });
+    history.unshift(mk(lastCmp.in,  '室内', ['T','Td']));
+    history.unshift(mk(lastCmp.out, '外気', ['T','RH']));
+    if(history.length > 50) history = history.slice(0,50);
+    saveHistory();
+    renderHistory();
+    showMsg(cmpMsgBox, '外気・室内の2件を履歴に保存しました。', 'info');
+  });
+
+  /* ===================== モード切替 ===================== */
+  function setMode(m){
+    mode = m;
+    const single = (m === 'single');
+    singleSection.classList.toggle('hidden', !single);
+    cmpSection.classList.toggle('hidden', single);
+    modeSingleBtn.classList.toggle('active', single);
+    modeCmpBtn.classList.toggle('active', !single);
+    drawChart();
+  }
+  modeSingleBtn.addEventListener('click', ()=> setMode('single'));
+  modeCmpBtn.addEventListener('click', ()=> setMode('cmp'));
+
+  /* ===================== 単位切替 ===================== */
+  function switchUnit(newU){
+    if(newU === tempUnit) return;
+    const oldU = tempUnit;
+    // 温度入力欄の値を再解釈（旧単位→新単位）
+    const tempInputs = [fields.T.input, fields.Td.input, cmpTout, cmpTin];
+    const cache = tempInputs.map(el=>{
+      if(el.value === '') return '';
+      const n = parseFloat(el.value);
+      if(isNaN(n)) return el.value;
+      // 旧単位で℃へ
+      let c;
+      if(oldU==='F') c = (n-32)*5/9; else if(oldU==='K') c = n-273.15; else c = n;
+      return c;
+    });
+    tempUnit = newU;
+    tempInputs.forEach((el,idx)=>{
+      const c = cache[idx];
+      if(c === '' || typeof c !== 'number'){ /* keep */ }
+      else { el.value = round(cToDisp(c), 1).toFixed(1); }
+    });
+    updateUnitLabels();
+    // 表示物を再描画
+    if(lastSingle) renderDetail(lastSingle);
+    if(lastCmp) renderCmp(lastCmp.out, lastCmp.in);
+    renderHistory();
+    drawChart();
+  }
+  document.querySelectorAll('.seg.unit button').forEach(b=>{
+    b.addEventListener('click', ()=> switchUnit(b.dataset.unit));
+  });
+
+  /* ===================== 履歴（v2）永続化 ===================== */
+  function loadHistory(){
+    try{
+      const raw = localStorage.getItem(HIST_KEY);
+      if(raw){
+        history = JSON.parse(raw);
+        if(!Array.isArray(history)) history = [];
+      } else {
+        history = migrateV1();
+        if(history.length) saveHistory();
+      }
+    }catch(e){ history = []; memoryOnly = true; }
+  }
+  function migrateV1(){
+    try{
+      const raw = localStorage.getItem(HIST_KEY_V1);
+      if(!raw) return [];
+      const old = JSON.parse(raw);
+      if(!Array.isArray(old)) return [];
+      return old.map(o=>{
+        const T = parseFloat(o.vals.T), Td = parseFloat(o.vals.Td);
+        const e = es(Td);
+        const st = stateFromTandE(T, e);
+        return {
+          id: o.id || Date.now(),
+          ts: o.ts || new Date().toISOString(),
+          note: '',
+          inputs: Array.isArray(o.inputs) ? o.inputs : ['T','RH'],
+          state: { T:st.T, RH:st.RH, AH:st.AH, Td:st.Td, x:st.x, h:st.h, Tw:st.Tw, e:st.e }
+        };
+      });
+    }catch(e){ return []; }
+  }
+  function saveHistory(){
+    if(memoryOnly) return;
+    try{ localStorage.setItem(HIST_KEY, JSON.stringify(history)); }
+    catch(e){ memoryOnly = true; }
+  }
+
+  function fmtTime(iso){
+    const d = new Date(iso);
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  function renderHistory(){
+    histCount.textContent = history.length ? `(${history.length}件)` : '';
+    clearHistBtn.disabled = history.length === 0;
+
+    if(history.length === 0){
+      histList.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'hist-empty';
+      empty.textContent = '計算するとここに履歴が残ります。';
+      histList.appendChild(empty);
+      return;
+    }
+
+    histList.innerHTML = '';
+    history.forEach(entry=>{
+      const item = document.createElement('div');
+      item.className = 'hist-item';
+
+      const top = document.createElement('div');
+      top.className = 'top';
+
+      const metaWrap = document.createElement('div');
+      metaWrap.className = 'meta';
+      if(entry.note){
+        const badge = document.createElement('span');
+        badge.className = 'note-badge';
+        badge.textContent = entry.note;
+        metaWrap.appendChild(badge);
+      }
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = fmtTime(entry.ts);
+      metaWrap.appendChild(time);
+
+      const acts = document.createElement('div');
+      acts.className = 'item-actions';
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'mini-btn';
+      loadBtn.type = 'button';
+      loadBtn.textContent = '呼び出す';
+      loadBtn.addEventListener('click', ()=> loadEntry(entry));
+      const delBtn = document.createElement('button');
+      delBtn.className = 'mini-btn del';
+      delBtn.type = 'button';
+      delBtn.textContent = '削除';
+      delBtn.addEventListener('click', ()=> deleteEntry(entry.id));
+      acts.appendChild(loadBtn);
+      acts.appendChild(delBtn);
+
+      top.appendChild(metaWrap);
+      top.appendChild(acts);
+
+      const vals = document.createElement('div');
+      vals.className = 'hist-vals';
+      ORDER.forEach(k=>{
+        const cell = document.createElement('div');
+        cell.className = 'cell' + ((entry.inputs||[]).includes(k) ? ' input-cell' : '');
+        const kEl = document.createElement('span');
+        kEl.className = 'k'; kEl.textContent = META[k].label;
+        const vEl = document.createElement('span');
+        vEl.className = 'v';
+        const internal = entry.state[k];
+        const disp = TEMP_KEYS.has(k) ? fmtTemp(internal, META[k].digits) : fmtNum(internal, META[k].digits);
+        const uLabel = (TEMP_KEYS.has(k)) ? tempUnitLabel() : META[k].unit;
+        vEl.textContent = disp;
+        const uEl = document.createElement('span');
+        uEl.style.fontSize = '9px'; uEl.style.fontWeight = '400';
+        uEl.textContent = ' ' + uLabel;
+        vEl.appendChild(uEl);
+        cell.appendChild(kEl); cell.appendChild(vEl);
+        vals.appendChild(cell);
+      });
+
+      item.appendChild(top);
+      item.appendChild(vals);
+      histList.appendChild(item);
+    });
+  }
+
+  function loadEntry(entry){
+    setMode('single');
+    ORDER.forEach(k=>{
+      fields[k].input.value = fmtField(k, entry.state[k]);
+      fields[k].el.classList.remove('has-value','computed');
+      if((entry.inputs||[]).includes(k)) fields[k].el.classList.add('has-value');
+      else fields[k].el.classList.add('computed');
+    });
+    noteInput.value = entry.note || '';
+    clearMsg(msgBox);
+    const st = Object.assign({}, entry.state);
+    st.inputs = entry.inputs;
+    lastSingle = st;
+    renderDetail(st);
+    drawChart();
+    window.scrollTo({ top:0, behavior:'smooth' });
+  }
+
+  function deleteEntry(id){
+    history = history.filter(e=> e.id !== id);
+    saveHistory();
+    renderHistory();
+  }
+
+  clearHistBtn.addEventListener('click', ()=>{
+    if(history.length === 0) return;
+    if(confirm('計算履歴をすべて削除しますか?')){
+      history = [];
+      saveHistory();
+      renderHistory();
+    }
+  });
+
+  /* ===================== 空気線図 ===================== */
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  // プロット範囲（内部は℃・g/kg）
+  const CH = {
+    W:680, H:440, ml:52, mr:16, mt:14, mb:34,
+    Tmin:-10, Tmax:40, Xmin:0, Xmax:30
+  };
+  function chX(T){ const pw = CH.W - CH.ml - CH.mr; return CH.ml + (T - CH.Tmin)/(CH.Tmax - CH.Tmin) * pw; }
+  function chY(X){ const ph = CH.H - CH.mt - CH.mb; return CH.mt + (1 - (X - CH.Xmin)/(CH.Xmax - CH.Xmin)) * ph; }
+  function svgEl(name, attrs){
+    const el = document.createElementNS(SVGNS, name);
+    for(const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function svgText(x, y, cls, text, extra){
+    const t = svgEl('text', Object.assign({ x:x, y:y, class:cls }, extra||{}));
+    t.textContent = text;
+    return t;
+  }
+  function curvePoints(rhFrac){
+    // rhFrac の等湿度線を折れ線点列で返す（プロット枠内でクリップ）
+    const pts = [];
+    for(let T = CH.Tmin; T <= CH.Tmax + 0.001; T += 1){
+      const X = mixingRatio(es(T) * rhFrac);
+      if(X > CH.Xmax) break;
+      pts.push(chX(T) + ',' + chY(X));
+    }
+    return pts.join(' ');
+  }
+
+  function drawChart(){
+    while(chart.firstChild) chart.removeChild(chart.firstChild);
+
+    // グリッド（縦: 温度10℃毎 / 横: 5g/kg毎）
+    for(let T = CH.Tmin; T <= CH.Tmax; T += 10){
+      const x = chX(T);
+      chart.appendChild(svgEl('line', { x1:x, y1:CH.mt, x2:x, y2:CH.H-CH.mb, class:'c-grid' }));
+      chart.appendChild(svgText(x, CH.H-CH.mb+16, 'c-tick', fmtNum(cToDisp(T),0), { 'text-anchor':'middle' }));
+    }
+    for(let X = CH.Xmin; X <= CH.Xmax; X += 5){
+      const y = chY(X);
+      chart.appendChild(svgEl('line', { x1:CH.ml, y1:y, x2:CH.W-CH.mr, y2:y, class:'c-grid' }));
+      chart.appendChild(svgText(CH.ml-6, y+3, 'c-tick', String(X), { 'text-anchor':'end' }));
+    }
+    // 軸
+    chart.appendChild(svgEl('line', { x1:CH.ml, y1:CH.H-CH.mb, x2:CH.W-CH.mr, y2:CH.H-CH.mb, class:'c-axis' }));
+    chart.appendChild(svgEl('line', { x1:CH.ml, y1:CH.mt, x2:CH.ml, y2:CH.H-CH.mb, class:'c-axis' }));
+    chart.appendChild(svgText(CH.W-CH.mr, CH.H-CH.mb+16, 'c-axtitle', '乾球温度('+tempUnitLabel()+')', { 'text-anchor':'end' }));
+    chart.appendChild(svgText(CH.ml-6, CH.mt-3, 'c-axtitle', 'g/kg', { 'text-anchor':'end' }));
+
+    // RH等値線
+    [20,40,60,80].forEach(rh=>{
+      const pts = curvePoints(rh/100);
+      if(pts) chart.appendChild(svgEl('polyline', { points:pts, class:'c-rh' }));
+    });
+    // 飽和線(RH100%)
+    const sat = curvePoints(1);
+    if(sat) chart.appendChild(svgEl('polyline', { points:sat, class:'c-sat' }));
+    // RHラベル（飽和線近くに配置）
+    [20,40,60,80,100].forEach(rh=>{
+      // 表示枠に収まる最大Tでラベル位置決定
+      let lastT = null, lastX = null;
+      for(let T=CH.Tmin; T<=CH.Tmax; T+=1){
+        const X = mixingRatio(es(T)*rh/100);
+        if(X > CH.Xmax) break;
+        lastT = T; lastX = X;
+      }
+      if(lastT !== null){
+        chart.appendChild(svgText(chX(lastT)+4, chY(lastX)-2, 'c-rhlabel', rh+'%'));
+      }
+    });
+
+    // データ点
+    const pts = [];
+    if(mode === 'single' && lastSingle){
+      pts.push({ T:lastSingle.T, X:lastSingle.x, cls:'single', label:(noteInput.value.trim()||'計算点') });
+    } else if(mode === 'cmp' && lastCmp){
+      pts.push({ T:lastCmp.out.T, X:lastCmp.out.x, cls:'out', label:'外気' });
+      pts.push({ T:lastCmp.in.T,  X:lastCmp.in.x,  cls:'in',  label:'室内' });
+    }
+    // 比較の水平線（同一重量絶対湿度）
+    if(pts.length === 2){
+      chart.appendChild(svgEl('line', {
+        x1:chX(pts[0].T), y1:chY(pts[0].X), x2:chX(pts[1].T), y2:chY(pts[1].X), class:'c-cmpline'
+      }));
+    }
+    pts.forEach(p=>{
+      const cx = chX(Math.max(CH.Tmin, Math.min(CH.Tmax, p.T)));
+      const cy = chY(Math.max(CH.Xmin, Math.min(CH.Xmax, p.X)));
+      chart.appendChild(svgEl('circle', { cx:cx, cy:cy, r:5.5, class:'pt pt-'+p.cls }));
+      const anchor = (cx > CH.W-90) ? 'end' : 'start';
+      const dx = anchor==='end' ? -9 : 9;
+      chart.appendChild(svgText(cx+dx, cy+4, 'pt-label '+p.cls, p.label, { 'text-anchor':anchor }));
+    });
+  }
+
+  /* ===================== 初期化 ===================== */
+  loadHistory();
+  updateUnitLabels();
+  renderHistory();
+  updateFieldStates();
+  drawChart();
+})();
+</script>
+
+</body>
+</html>
