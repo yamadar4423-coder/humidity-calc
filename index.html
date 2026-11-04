@@ -767,9 +767,11 @@
   /* ===================== 表示ヘルパ ===================== */
   function round(v, d){ const p = Math.pow(10, d); return Math.round(v * p) / p; }
   // key（T/RH/AH/Td）を、単位変換込みで表示文字列化（内部値=℃基準）
+  // K は ℃ より 0.05 細かい端数を持つ（25.0℃ = 298.15K）。入力欄へ書き戻す値は 2 桁残し、単位の往復でずれないようにする
+  function tempInputDigits(){ return tempUnit === 'K' ? 2 : 1; }
   function fmtField(key, internal){
-    const val = TEMP_KEYS.has(key) ? cToDisp(internal) : internal;
-    return round(val, META[key].digits).toFixed(META[key].digits);
+    if(TEMP_KEYS.has(key)){ const d = tempInputDigits(); return round(cToDisp(internal), d).toFixed(d); }
+    return round(internal, META[key].digits).toFixed(META[key].digits);
   }
   function fmtTemp(cVal, d){ return round(cToDisp(cVal), d).toFixed(d); }
   function fmtNum(v, d){ return round(v, d).toFixed(d); }
@@ -884,6 +886,12 @@
         }
         default: throw new Error('未対応の組み合わせです。');
       }
+
+      // 入力と同じ範囲で算出値も確かめる（範囲外は 1 気圧で成り立たない、または式の適用範囲を超える）
+      // 表示と同じ小数 1 桁で判定する（-60℃・100% の露点が計算誤差で -60.00000001 になっても止めない）
+      const inRange = v => { const r = round(v, 1); return r >= -60 && r <= 80; };
+      if (!inRange(T)) throw new Error('算出された気温が -60〜80℃ 相当の範囲外です。入力値を確認してください。');
+      if (!inRange(Td)) throw new Error('算出された露点温度が -60〜80℃ 相当の範囲外です。入力値を確認してください。');
 
       if (RH > 100.5){
         showMsg(msgBox, '計算結果の相対湿度が100%を超えています。入力値を確認してください(過飽和)。', 'error');
@@ -1056,7 +1064,7 @@
     tempInputs.forEach((el,idx)=>{
       const c = cache[idx];
       if(c === '' || typeof c !== 'number'){ /* keep */ }
-      else { el.value = round(cToDisp(c), 1).toFixed(1); }
+      else { const d = tempInputDigits(); el.value = round(cToDisp(c), d).toFixed(d); }
     });
     updateUnitLabels();
     // 表示物を再描画
