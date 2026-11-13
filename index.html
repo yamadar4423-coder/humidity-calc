@@ -527,7 +527,7 @@
       <div class="field" id="fieldT" data-key="T">
         <label>気温 (Temperature)<span class="tag">入力</span></label>
         <div class="row">
-          <input type="text" inputmode="decimal" data-calc id="inputT" placeholder="例: 25.0">
+          <input type="text" inputmode="decimal" data-calc data-signed id="inputT" placeholder="例: 25.0">
           <span class="unit temp-unit">℃</span>
         </div>
       </div>
@@ -551,7 +551,7 @@
       <div class="field" id="fieldTd" data-key="Td">
         <label>露点温度 (Dew Point)<span class="tag">入力</span></label>
         <div class="row">
-          <input type="text" inputmode="decimal" data-calc id="inputTd" placeholder="例: 16.7">
+          <input type="text" inputmode="decimal" data-calc data-signed id="inputTd" placeholder="例: 16.7">
           <span class="unit temp-unit">℃</span>
         </div>
       </div>
@@ -594,7 +594,7 @@
       <div class="field" id="fieldCmpTout">
         <label>外気 気温<span class="tag" style="opacity:1">外</span></label>
         <div class="row">
-          <input type="text" inputmode="decimal" data-calc id="cmpTout" placeholder="例: 2.0">
+          <input type="text" inputmode="decimal" data-calc data-signed id="cmpTout" placeholder="例: 2.0">
           <span class="unit temp-unit">℃</span>
         </div>
       </div>
@@ -608,7 +608,7 @@
       <div class="field" id="fieldCmpTin">
         <label>室内 気温<span class="tag" style="opacity:1;background:var(--amber)">室</span></label>
         <div class="row">
-          <input type="text" inputmode="decimal" data-calc id="cmpTin" placeholder="例: 20.0">
+          <input type="text" inputmode="decimal" data-calc data-signed id="cmpTin" placeholder="例: 20.0">
           <span class="unit temp-unit">℃</span>
         </div>
       </div>
@@ -1350,6 +1350,7 @@
  *   2. 入力の確定で画面が描き直されても、Tab・Shift+Tab・クリックで移ろうとした先の欄へカーソルを戻す
  *      （描き直しで行き先の欄が作り直され、カーソルが消えていた）。移った欄は中身を選んだ状態にして、すぐ打ち直せる
  *   3. ファイル（保存データの JSON など）を画面のどこへ落としても読み込む（下の 3.）
+ *   4. data-signed を付けた数値の欄の横に「±」を出し、押すと符号を替える（スマホの数字のキーボードに − が無いため・下の 4.）
  *   組み込むときの決まり：欄の横の補助ボタン（−・＋・×など）は tabindex="-1" にして、Tab が入力欄だけを順に移るようにする（11/12）
  *   道具の画面の処理には手を入れない。document に先回りの受け口（capture）を付けるだけ
  */
@@ -1472,7 +1473,37 @@
   },true);
   function fileDrop(o){ DROP=o||null; }
 
-  window.InputAssist={calc:calc,apply:apply,fileDrop:fileDrop};
+  /* ---- 4. マイナスを打てるようにする（2026-11-13 本人「マイナスも打てるようにして」） ----
+   *   スマホの数字のキーボード（inputmode="decimal"）には − が無い。外気温・露点など負になりうる欄に
+   *   data-signed を付けると、欄のすぐ後ろに「±」を出す。押すと先頭の − を付け外しし、欄へカーソルを戻す。
+   *   空の欄で押すと「-」だけ入れて続きを打てるようにする（このときは確定の知らせを出さない）。
+   *   ± は tabindex="-1"（Tab は入力欄だけを移る）。描き直しで作られた欄にも付く。PC では − をそのまま打ってもよい */
+  function signBtn(el){
+    if(el.__iaSign) return; el.__iaSign=true;
+    var b=document.createElement("button"); b.type="button"; b.tabIndex=-1; b.textContent="±";
+    b.className="ia-sign"; b.setAttribute("aria-label","プラスとマイナスを切り替える"); b.title="プラスとマイナスを切り替える";
+    b.style.cssText="flex:none;min-width:2.2em;min-height:2.2em;margin:0 0 0 4px;padding:0 .4em;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;font:inherit;line-height:1;cursor:pointer;opacity:.75;vertical-align:middle";
+    b.addEventListener("mousedown",function(e){ e.preventDefault(); });   // PC：欄のカーソルを外さない
+    b.addEventListener("click",function(e){
+      e.preventDefault(); e.stopPropagation();
+      var v=el.value.trim(), next;
+      if(/^[-−]/.test(v)) next=v.replace(/^[-−]\s*/,""); else next="-"+v;
+      el.value=next; el.focus();
+      try{ var n=el.value.length; el.setSelectionRange(n,n); }catch(_){}
+      if(/\d/.test(next)){ el.dispatchEvent(new Event("input",{bubbles:true})); el.dispatchEvent(new Event("change",{bubbles:true})); }
+    });
+    el.insertAdjacentElement("afterend",b);
+  }
+  function scanSigned(root){ (root||document).querySelectorAll&&Array.prototype.forEach.call((root||document).querySelectorAll("input[data-signed]"),signBtn); }
+  function startSigned(){
+    scanSigned(document);
+    new MutationObserver(function(ms){ ms.forEach(function(m){ Array.prototype.forEach.call(m.addedNodes,function(n){
+      if(n.nodeType!==1) return; if(n.matches&&n.matches("input[data-signed]")) signBtn(n); else scanSigned(n); }); }); })
+      .observe(document.documentElement,{childList:true,subtree:true});
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",startSigned); else startSigned();
+
+  window.InputAssist={calc:calc,apply:apply,fileDrop:fileDrop,signed:scanSigned};
 })();
 </script>
 
